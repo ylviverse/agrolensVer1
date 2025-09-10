@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:agrolens/themes/color.dart';
+import 'package:agrolens/Pages/model.dart'; // Import your model
 import 'package:flutter/material.dart'; 
 import 'package:flutter/cupertino.dart';
 import 'package:camera/camera.dart';
@@ -25,12 +26,15 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
   
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
+  
+  // Model instance
+  final RiceDiseaseModel _model = RiceDiseaseModel.instance;
 
   @override
   void initState() {
     super.initState();
     _setupAnimations();
-    //_analyzeImage();
+    _analyzeImage();
   }
 
   void _setupAnimations() {
@@ -56,117 +60,106 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  // TODO: Replace with actual CNN model integration
-  // Future<void> _analyzeImage() async {
-  //   setState(() {
-  //     _isAnalyzing = true;
-  //   });
+  /// Analyze the captured image using the AI model
+  Future<void> _analyzeImage() async {
+    print('🔍 Starting image analysis...');
+    
+    setState(() {
+      _isAnalyzing = true;
+    });
 
-  //   try {
-  //     // Simulate analysis delay (replace with actual model loading time)
-  //     await Future.delayed(const Duration(seconds: 3));
+    try {
+      print('📷 Image path: ${widget.capturedImage.path}');
       
-  //     // TODO: Replace this with actual CNN model prediction
-  //     // final results = await _predictWithCNNModel(widget.capturedImage.path);
+      // Check if image file exists
+      final imageFile = File(widget.capturedImage.path);
+      if (!await imageFile.exists()) {
+        throw Exception('Image file does not exist');
+      }
       
-  //     // Mock results for testing (remove when CNN is integrated)
-  //     final results = {
-  //       'disease': 'Healthy',
-  //       'confidence': 0.92,
-  //       'severity': 'None',
-  //     };
+      print('✅ Image file exists, size: ${await imageFile.length()} bytes');
       
-  //     setState(() {
-  //       _prediction = results['disease'];
-  //       _confidence = results['confidence'];
-  //       _analysisResults = results;
-  //       _isAnalyzing = false;
-  //     });
+      // Load model if not already loaded
+      print('🤖 Loading AI model...');
+      bool modelLoaded = await _model.loadModel();
       
-  //     // Stop the loading animation
-  //     _pulseController.stop();
-  //   } catch (e) {
-  //     setState(() {
-  //       _prediction = 'Error analyzing image';
-  //       _confidence = 0.0;
-  //       _isAnalyzing = false;
-  //     });
-  //     _pulseController.stop();
-  //   }
-  // }
-
-  // TODO: Implement actual CNN model prediction
-  /*
-  Future<Map<String, dynamic>> _predictWithCNNModel(String imagePath) async {
-    // PLACEHOLDER: This is where you'll integrate your CNN model
-    // Example using tflite_flutter or tensorflow_lite packages:
-    
-    // 1. Load the model
-    // final interpreter = await Interpreter.fromAsset('assets/models/rice_disease_model.tflite');
-    
-    // 2. Preprocess the image
-    // final preprocessedImage = await _preprocessImage(imagePath);
-    
-    // 3. Run inference
-    // final output = List.filled(1 * numClasses, 0).reshape([1, numClasses]);
-    // interpreter.run(preprocessedImage, output);
-    
-    // 4. Process results
-    // final predictions = output[0] as List<double>;
-    // final maxIndex = predictions.indexOf(predictions.reduce(math.max));
-    // final confidence = predictions[maxIndex];
-    // final disease = diseaseLabels[maxIndex];
-    
-    // return {
-    //   'disease': disease,
-    //   'confidence': confidence,
-    //   'all_predictions': predictions,
-    //   'severity': _getSeverity(disease, confidence),
-    // };
-
-    // Mock data for testing
-    final mockDiseases = ['Healthy', 'Brown Spot', 'Leaf Blast', 'Bacterial Blight'];
-    final mockDisease = mockDiseases[DateTime.now().millisecond % mockDiseases.length];
-    final mockConfidence = 0.85 + (DateTime.now().millisecond % 15) / 100;
-
-    return {
-      'disease': mockDisease,
-      'confidence': mockConfidence,
-      'severity': mockDisease == 'Healthy' ? 'None' : 'Moderate',
-    };
+      if (!modelLoaded) {
+        throw Exception('Failed to load AI model');
+      }
+      
+      print('✅ Model loaded successfully');
+      
+      // Add some delay for better UX
+      await Future.delayed(const Duration(seconds: 1));
+      
+      // Get prediction from model
+      print('🔬 Running disease prediction...');
+      final results = await _model.predictDisease(widget.capturedImage.path);
+      
+      print('📊 Prediction results: $results');
+      
+      // Check if we got valid results
+      if (results == null || results.isEmpty) {
+        throw Exception('Model returned empty results');
+      }
+      
+      setState(() {
+        _prediction = results['disease'] ?? 'Unknown';
+        _confidence = results['confidence'] ?? 0.0;
+        _analysisResults = results;
+        _isAnalyzing = false;
+      });
+      
+      // Stop the loading animation
+      _pulseController.stop();
+      
+      print('✅ Analysis complete: $_prediction (${(_confidence! * 100).toStringAsFixed(1)}%)');
+      
+    } catch (e, stackTrace) {
+      print('❌ Analysis error: $e');
+      print('Stack trace: $stackTrace');
+      
+      setState(() {
+        _prediction = 'Error analyzing image';
+        _confidence = 0.0;
+        _analysisResults = {
+          'error': e.toString(),
+          'disease': 'Error',
+          'confidence': 0.0,
+          'severity': 'Unknown'
+        };
+        _isAnalyzing = false;
+      });
+      _pulseController.stop();
+      
+      // Show error dialog to user
+      _showErrorDialog(e.toString());
+    }
   }
-  */
 
-  // TODO: Add image preprocessing for CNN model
-  /*
-  Future<List<List<List<List<double>>>>> _preprocessImage(String imagePath) async {
-    // 1. Load image
-    // final imageFile = File(imagePath);
-    // final image = img.decodeImage(imageFile.readAsBytesSync());
-    
-    // 2. Resize to model input size (e.g., 224x224)
-    // final resized = img.copyResize(image!, width: 224, height: 224);
-    
-    // 3. Normalize pixel values to [0,1] or [-1,1] depending on model
-    // final input = List.generate(1, (i) =>
-    //   List.generate(224, (y) =>
-    //     List.generate(224, (x) =>
-    //       List.generate(3, (c) {
-    //         final pixel = resized.getPixel(x, y);
-    //         switch (c) {
-    //           case 0: return pixel.r / 255.0; // Red
-    //           case 1: return pixel.g / 255.0; // Green
-    //           case 2: return pixel.b / 255.0; // Blue
-    //           default: return 0.0;
-    //         }
-    //       })
-    //     )
-    //   )
-    // );
-    
-    // return input;
+  /// Show error dialog to user
+  void _showErrorDialog(String error) {
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Analysis Error'),
+        content: Text('Failed to analyze image: $error'),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('OK'),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          CupertinoDialogAction(
+            child: const Text('Retry'),
+            onPressed: () {
+              Navigator.of(context).pop();
+              _analyzeImage(); // Retry analysis
+            },
+          ),
+        ],
+      ),
+    );
   }
-  */
 
   Color _getHealthColor(String disease) {
     switch (disease.toLowerCase()) {
@@ -176,8 +169,10 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
       case 'leaf blast':
       case 'bacterial blight':
         return CupertinoColors.systemRed;
-      default:
+      case 'error':
         return CupertinoColors.systemOrange;
+      default:
+        return CupertinoColors.systemYellow;
     }
   }
 
@@ -189,6 +184,8 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
       case 'leaf blast':
       case 'bacterial blight':
         return CupertinoIcons.exclamationmark_triangle_fill;
+      case 'error':
+        return CupertinoIcons.xmark_circle_fill;
       default:
         return CupertinoIcons.question_circle_fill;
     }
@@ -233,7 +230,6 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
         
         const SizedBox(height: 30),
         
-        // Progress indicator
         const CupertinoActivityIndicator(
           color: CupertinoColors.white,
           radius: 15,
@@ -325,7 +321,9 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
                       child: Text(
                         _prediction == 'Healthy' 
                           ? 'Your rice looks healthy!' 
-                          : 'Disease detected: $_prediction',
+                          : _prediction == 'Error'
+                            ? 'Analysis failed'
+                            : 'Disease detected: $_prediction',
                         style: TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
@@ -337,7 +335,7 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
                   ],
                 ),
 
-                if (_confidence != null) ...[
+                if (_confidence != null && _confidence! > 0) ...[
                   const SizedBox(height: 20),
                   Text(
                     'Confidence: ${(_confidence! * 100).toStringAsFixed(1)}%',
@@ -352,7 +350,7 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
                 const SizedBox(height: 40),
 
                 // Analysis Details Box
-                if (_analysisResults != null) ...[
+                if (_analysisResults != null && _prediction != null && _prediction != 'Error') ...[
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(24),
@@ -397,13 +395,134 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
                           ),
                           const SizedBox(height: 12),
                         ],
-                        const Text(
-                          'Analysis completed using advanced image processing.',
-                          style: TextStyle(
+                        Text(
+                          _model.getDiseaseDescription(_prediction!),
+                          style: const TextStyle(
                             fontSize: 16,
                             color: CupertinoColors.white,
                             height: 1.4,
                           ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 20),
+                  
+                  // Recommendations
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(15),
+                      border: Border.all(
+                        color: CupertinoColors.white.withOpacity(0.3),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              CupertinoIcons.lightbulb,
+                              color: CupertinoColors.white,
+                              size: 22,
+                            ),
+                            const SizedBox(width: 12),
+                            const Text(
+                              'Recommendations',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: CupertinoColors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        ..._model.getRecommendations(_prediction!).map(
+                          (recommendation) => Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  '• ',
+                                  style: TextStyle(
+                                    color: CupertinoColors.white,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Text(
+                                    recommendation,
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      color: CupertinoColors.white,
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
+                // Error Details (if there's an error)
+                if (_prediction == 'Error' && _analysisResults?['error'] != null) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(15),
+                      border: Border.all(
+                        color: CupertinoColors.systemRed.withOpacity(0.3),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              CupertinoIcons.exclamationmark_triangle,
+                              color: CupertinoColors.systemRed,
+                              size: 22,
+                            ),
+                            const SizedBox(width: 12),
+                            const Text(
+                              'Error Details',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: CupertinoColors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          _analysisResults!['error'].toString(),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: CupertinoColors.white,
+                            height: 1.4,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        CupertinoButton(
+                          color: CupertinoColors.systemBlue,
+                          child: const Text('Retry Analysis'),
+                          onPressed: () => _analyzeImage(),
                         ),
                       ],
                     ),

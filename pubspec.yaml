@@ -16,7 +16,8 @@ dependencies:
   smooth_page_indicator: ^1.1.0
   flutter_native_splash: ^2.4.6
   image_picker: ^1.0.7
-  pytorch_mobile: ^0.2.2
+  
+  pytorch_lite: ^4.3.2
   image: ^4.0.17 
 
 flutter_native_splash:
