@@ -198,13 +198,11 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        // TODO: Replace with your Lottie animation file
-        // Add this to your pubspec.yaml: lottie: ^3.1.2
-        Container(
+        SizedBox(
           width: 200,
           height: 200,
           child: Lottie.asset(
-            'assets/animations/Loading.json', // Replace with your actual Lottie file
+            'assets/animations/Loading.json', 
             fit: BoxFit.contain,
             repeat: true,
           ),

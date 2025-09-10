@@ -16,6 +16,8 @@ dependencies:
   smooth_page_indicator: ^1.1.0
   flutter_native_splash: ^2.4.6
   image_picker: ^1.0.7
+  pytorch_mobile: ^0.2.2
+  image: ^4.0.17 
 
 flutter_native_splash:
   background_image: "assets/images/Background.png"
@@ -24,6 +26,8 @@ flutter_native_splash:
   ios: true
   web: false
   fullscreen: true
+
+  ios_deployment_target: "13.0"
 
 
 dev_dependencies:
@@ -43,6 +47,7 @@ flutter:
     - assets/animations/Camera.json
     - assets/images/Background.png
     - assets/animations/Loading.json
+    - assets/model/EfficientNetV2S_for_mobile.ptl
   
 
    
