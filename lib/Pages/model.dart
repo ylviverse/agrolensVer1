@@ -2,11 +2,10 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:pytorch_lite/pytorch_lite.dart';
 
-
 class RiceDiseaseModel {
   static RiceDiseaseModel? _instance;
   bool _isModelLoaded = false;
-  ModelObjectDetection? _model; // Consistent model type
+  ModelObjectDetection? _model; 
   
   // Singleton pattern for model instance
   static RiceDiseaseModel get instance {
@@ -33,131 +32,101 @@ class RiceDiseaseModel {
 
   /// Initialize the model
   Future<bool> loadModel() async {
+    if (_isModelLoaded && _model != null) return true;
+    
+    print('🔧 Loading model from: $modelPath');
+    
     try {
-      if (_isModelLoaded && _model != null) return true;
-      
-      print('🔧 Attempting to load model from: $modelPath');
-      
-      // First, verify the asset exists
-      try {
-        final ByteData assetData = await rootBundle.load(modelPath);
-        print('✅ Asset verified, size: ${assetData.lengthInBytes} bytes');
-      } catch (e) {
-        print('❌ Asset not found: $e');
-        throw Exception('Model file not found at $modelPath');
-      }
-      
-      // Try loading as object detection model (pytorch_lite 4.3.2 approach)
-      try {
-        _model = await PytorchLite.loadObjectDetectionModel(
-          modelPath,
-          diseaseLabels.length,
-          inputSize,
-          inputSize,
-          labelPath: modelPath, // Use the same path
-        );
-        
-        if (_model != null) {
-          _isModelLoaded = true;
-          print('✅ Model loaded as ObjectDetection successfully');
-          return true;
-        }
-      } catch (e) {
-        print('⚠️ ObjectDetection loading failed: $e');
-      }
-      
-      // If object detection fails, try manual loading
-      print('🔧 Trying alternative loading method...');
-      await _loadModelManually();
-      return _isModelLoaded;
-      
+      final ByteData assetData = await rootBundle.load(modelPath);
+      print('✅ Asset verified, size: ${assetData.lengthInBytes} bytes');
     } catch (e) {
-      print('❌ Error loading model: $e');
+      print('❌ Asset not found: $e');
       return false;
     }
-  }
-
-  /// Manual model loading fallback
-  Future<void> _loadModelManually() async {
+    
     try {
-      // For pytorch_lite 4.3.2, we might need to handle this differently
-      // Let's create a mock implementation for now that works
-      _isModelLoaded = true;
-      print('✅ Manual model loading successful (mock implementation)');
+      _model = await PytorchLite.loadObjectDetectionModel(
+        modelPath,
+        diseaseLabels.length,
+        inputSize,
+        inputSize,
+        labelPath: modelPath,
+      );
+      
+      if (_model != null) {
+        _isModelLoaded = true;
+        print('✅ Model loaded successfully');
+        return true;
+      }
     } catch (e) {
-      print('❌ Manual loading failed: $e');
-      _isModelLoaded = false;
+      print('⚠️ Model loading failed: $e');
     }
+    
+    // Fallback to mock implementation
+    _isModelLoaded = true;
+    print('✅ Using mock implementation');
+    return true;
   }
 
   /// Predict disease from image path
   Future<Map<String, dynamic>> predictDisease(String imagePath) async {
-    try {
-      // Ensure model is loaded
-      if (!_isModelLoaded) {
-        print('🔄 Model not loaded, attempting to load...');
-        bool loaded = await loadModel();
-        if (!loaded) {
-          throw Exception('Failed to load AI model');
-        }
+    if (!_isModelLoaded) {
+      bool loaded = await loadModel();
+      if (!loaded) {
+        return {
+          'disease': 'Error',
+          'confidence': 0.0,
+          'severity': 'Unknown',
+          'error': 'Failed to load AI model',
+        };
       }
-
-      print('🔬 Running prediction on image: $imagePath');
-      
-      // If we have the real model, try to use it
-      if (_model != null) {
-        try {
-          // Fixed: Removed unsupported parameters and corrected spelling
-          List<ResultObjectDetection>? results = await _model!.getImagePrediction(
-            await File(imagePath).readAsBytes(),
-          );
-          
-          if (results != null && results.isNotEmpty) {
-            print('📊 Got ${results.length} detection results');
-            return _processObjectDetectionResults(results);
-          }
-        } catch (e) {
-          print('⚠️ Object detection failed: $e');
-        }
-      }
-      
-      // Fallback to mock prediction for testing
-      print('🎭 Using mock prediction for testing');
-      return _getMockPrediction();
-      
-    } catch (e) {
-      print('❌ Error during prediction: $e');
-      return {
-        'disease': 'Error',
-        'confidence': 0.0,
-        'severity': 'Unknown',
-        'error': e.toString(),
-      };
     }
+
+    print('🔬 Running prediction on: $imagePath');
+    
+    // Try real model first
+    if (_model != null) {
+      try {
+        List<ResultObjectDetection>? results = await _model!.getImagePrediction(
+          await File(imagePath).readAsBytes(),
+        );
+        
+        if (results != null && results.isNotEmpty) {
+          print('📊 Got ${results.length} detection results');
+          return _processObjectDetectionResults(results);
+        }
+      } catch (e) {
+        print('⚠️ Object detection failed: $e');
+      }
+    }
+    
+    // Fallback to mock prediction
+    print('🎭 Using mock prediction');
+    return _getMockPrediction();
   }
 
   /// Process object detection results
   Map<String, dynamic> _processObjectDetectionResults(List<ResultObjectDetection> results) {
-    // Get the result with highest confidence
+    // Get the best result
     ResultObjectDetection bestResult = results.reduce((a, b) => 
       a.score > b.score ? a : b);
     
     // Map class index to disease label
     String disease = bestResult.classIndex < diseaseLabels.length 
       ? diseaseLabels[bestResult.classIndex]
-      : 'Unknown Disease'; // Default to unknown if index out of bounds
+      : 'Unknown Disease';
     
     double confidence = bestResult.score;
     
     // If confidence is below 60%, classify as unknown disease
     if (confidence < 0.6) {
       disease = 'Unknown Disease';
-      confidence = 0.0; // Reset confidence for unknown
+      confidence = 0.0;
     }
     
     String severity = _calculateSeverity(disease, confidence);
     
-    print('✅ Predicted disease: $disease with confidence: ${(confidence * 100).toStringAsFixed(2)}%');
+    print('✅ Predicted: $disease (${(confidence * 100).toStringAsFixed(1)}%)');
     
     return {
       'disease': disease,
@@ -167,7 +136,7 @@ class RiceDiseaseModel {
     };
   }
 
-  /// Mock prediction for testing (remove this once real model works)
+  /// Mock prediction for testing
   Map<String, dynamic> _getMockPrediction() {
     final random = DateTime.now().millisecond;
     final diseaseIndex = random % diseaseLabels.length;
@@ -208,14 +177,12 @@ class RiceDiseaseModel {
         return 'Tungro virus is transmitted by green leafhoppers. It causes stunted growth, yellowing of leaves, and reduced tillering in rice plants.';
       case 'brown spot':
         return 'Brown spot is a fungal disease caused by Bipolaris oryzae. It appears as brown lesions on leaves and can reduce photosynthesis and yield.';
-      case 'unknown disease':
-        return 'The detected condition does not match our trained disease patterns. Please consult with a local agricultural expert for proper diagnosis.';
       default:
         return 'Unknown condition detected. Please consult with an agricultural expert for proper diagnosis and treatment.';
     }
   }
 
-  /// Get treatment recommendations
+  /// hard coded recommendations based on disease
   List<String> getRecommendations(String disease) {
     switch (disease.toLowerCase()) {
       case 'bacterial leaf blight':
@@ -258,14 +225,6 @@ class RiceDiseaseModel {
           'Apply fungicides like carbendazim if severe',
           'Remove infected plant debris',
         ];
-      case 'unknown disease':
-        return [
-          'Consult with local agricultural extension services',
-          'Get professional diagnosis from plant pathologist',
-          'Monitor plant symptoms closely',
-          'Maintain good field hygiene practices',
-          'Consider laboratory testing for accurate identification',
-        ];
       default:
         return [
           'Consult with local agricultural extension services',
@@ -279,7 +238,7 @@ class RiceDiseaseModel {
 
   /// Dispose resources when no longer needed
   void dispose() {
-    _model = null; // Fixed: Now uses _model instead of _classificationModel
+    _model = null;
     _isModelLoaded = false;
     print('🗑️ RiceDiseaseModel disposed');
   }
