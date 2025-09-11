@@ -1,9 +1,7 @@
 import 'dart:io';
-import 'dart:typed_data';
-import 'dart:math' as math;
 import 'package:flutter/services.dart';
 import 'package:pytorch_lite/pytorch_lite.dart';
-import 'package:image/image.dart' as img;
+
 
 class RiceDiseaseModel {
   static RiceDiseaseModel? _instance;
@@ -18,12 +16,13 @@ class RiceDiseaseModel {
   
   RiceDiseaseModel._internal();
 
-  // Disease labels (adjust based on your model's output)
+  // Disease labels (updated to match your trained classes)
   static const List<String> diseaseLabels = [
-    'Healthy',
-    'Brown Spot',
-    'Leaf Blast',
-    'Bacterial Blight'
+    'Bacterial Leaf Blight',
+    'Rice Blast',
+    'Sheath Blight', 
+    'Tungro Virus',
+    'Brown Spot'
   ];
 
   // Model configuration
@@ -146,9 +145,16 @@ class RiceDiseaseModel {
     // Map class index to disease label
     String disease = bestResult.classIndex < diseaseLabels.length 
       ? diseaseLabels[bestResult.classIndex]
-      : diseaseLabels[0]; // Default to first disease
+      : 'Unknown Disease'; // Default to unknown if index out of bounds
     
     double confidence = bestResult.score;
+    
+    // If confidence is below 60%, classify as unknown disease
+    if (confidence < 0.6) {
+      disease = 'Unknown Disease';
+      confidence = 0.0; // Reset confidence for unknown
+    }
+    
     String severity = _calculateSeverity(disease, confidence);
     
     print('✅ Predicted disease: $disease with confidence: ${(confidence * 100).toStringAsFixed(2)}%');
@@ -180,8 +186,8 @@ class RiceDiseaseModel {
 
   /// Calculate disease severity based on prediction confidence
   String _calculateSeverity(String disease, double confidence) {
-    if (disease.toLowerCase() == 'healthy') {
-      return 'None';
+    if (disease.toLowerCase() == 'unknown disease') {
+      return 'Unknown';
     }
     
     if (confidence >= 0.8) return 'High';
@@ -192,14 +198,18 @@ class RiceDiseaseModel {
   /// Get human-readable disease description
   String getDiseaseDescription(String disease) {
     switch (disease.toLowerCase()) {
-      case 'healthy':
-        return 'Your rice plant appears healthy with no signs of disease. Continue monitoring and maintain good agricultural practices.';
+      case 'bacterial leaf blight':
+        return 'Bacterial leaf blight is a serious disease caused by Xanthomonas oryzae pv. oryzae. It causes wilting and yellowing of leaves, significantly reducing rice yield.';
+      case 'rice blast':
+        return 'Rice blast is a fungal disease caused by Magnaporthe oryzae. It can cause significant yield losses by destroying leaves, stems, and panicles.';
+      case 'sheath blight':
+        return 'Sheath blight is caused by the fungus Rhizoctonia solani. It affects the sheath and leaves, causing lesions that can reduce photosynthesis and yield.';
+      case 'tungro virus':
+        return 'Tungro virus is transmitted by green leafhoppers. It causes stunted growth, yellowing of leaves, and reduced tillering in rice plants.';
       case 'brown spot':
-        return 'Brown spot is a fungal disease caused by Bipolaris oryzae that affects rice leaves, causing brown lesions and reducing photosynthesis.';
-      case 'leaf blast':
-        return 'Leaf blast is a serious fungal disease caused by Magnaporthe oryzae that can significantly reduce yield if left untreated.';
-      case 'bacterial blight':
-        return 'Bacterial blight is caused by Xanthomonas oryzae and affects rice leaves and stems, causing wilting and yield loss.';
+        return 'Brown spot is a fungal disease caused by Bipolaris oryzae. It appears as brown lesions on leaves and can reduce photosynthesis and yield.';
+      case 'unknown disease':
+        return 'The detected condition does not match our trained disease patterns. Please consult with a local agricultural expert for proper diagnosis.';
       default:
         return 'Unknown condition detected. Please consult with an agricultural expert for proper diagnosis and treatment.';
     }
@@ -208,12 +218,37 @@ class RiceDiseaseModel {
   /// Get treatment recommendations
   List<String> getRecommendations(String disease) {
     switch (disease.toLowerCase()) {
-      case 'healthy':
+      case 'bacterial leaf blight':
         return [
-          'Continue current care routine',
-          'Monitor plants regularly for early disease detection',
-          'Maintain proper irrigation and drainage',
-          'Apply balanced fertilizers as recommended',
+          'Use certified disease-free seeds',
+          'Avoid overhead irrigation during flowering',
+          'Apply copper-based bactericides early',
+          'Remove and destroy infected plants',
+          'Practice field sanitation and equipment disinfection',
+        ];
+      case 'rice blast':
+        return [
+          'Ensure good air circulation in the field',
+          'Avoid excessive nitrogen fertilization',
+          'Plant blast-resistant rice varieties',
+          'Apply preventive fungicides during susceptible growth stages',
+          'Implement crop rotation practices',
+        ];
+      case 'sheath blight':
+        return [
+          'Maintain proper field drainage',
+          'Avoid excessive nitrogen application',
+          'Use balanced fertilization',
+          'Apply fungicides when disease pressure is high',
+          'Remove infected plant debris',
+        ];
+      case 'tungro virus':
+        return [
+          'Control green leafhopper vectors with insecticides',
+          'Use virus-resistant rice varieties',
+          'Remove and destroy infected plants',
+          'Implement proper field sanitation',
+          'Avoid planting near infected fields',
         ];
       case 'brown spot':
         return [
@@ -221,26 +256,23 @@ class RiceDiseaseModel {
           'Apply potassium fertilizer to strengthen plants',
           'Use certified disease-resistant varieties',
           'Apply fungicides like carbendazim if severe',
+          'Remove infected plant debris',
         ];
-      case 'leaf blast':
+      case 'unknown disease':
         return [
-          'Ensure good air circulation in the field',
-          'Avoid excessive nitrogen fertilization',
-          'Plant blast-resistant rice varieties',
-          'Apply preventive fungicides during susceptible growth stages',
-        ];
-      case 'bacterial blight':
-        return [
-          'Use certified disease-free seeds',
-          'Avoid overhead irrigation during flowering',
-          'Apply copper-based bactericides early',
-          'Remove and destroy infected plants',
+          'Consult with local agricultural extension services',
+          'Get professional diagnosis from plant pathologist',
+          'Monitor plant symptoms closely',
+          'Maintain good field hygiene practices',
+          'Consider laboratory testing for accurate identification',
         ];
       default:
         return [
           'Consult with local agricultural extension services',
           'Get professional diagnosis from plant pathologist',
           'Monitor plant symptoms closely',
+          'Maintain good field hygiene practices',
+          'Consider laboratory testing for accurate identification',
         ];
     }
   }

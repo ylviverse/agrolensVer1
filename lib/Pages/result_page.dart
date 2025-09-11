@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:agrolens/themes/color.dart';
-import 'package:agrolens/Pages/model.dart'; // Import your model
+import 'package:agrolens/Pages/model.dart';
 import 'package:flutter/material.dart'; 
 import 'package:flutter/cupertino.dart';
 import 'package:camera/camera.dart';
@@ -27,7 +27,6 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
   
-  // Model instance
   final RiceDiseaseModel _model = RiceDiseaseModel.instance;
 
   @override
@@ -62,43 +61,25 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
 
   /// Analyze the captured image using the AI model
   Future<void> _analyzeImage() async {
-    print('🔍 Starting image analysis...');
-    
-    setState(() {
-      _isAnalyzing = true;
-    });
+    setState(() => _isAnalyzing = true);
 
     try {
-      print('📷 Image path: ${widget.capturedImage.path}');
-      
       // Check if image file exists
       final imageFile = File(widget.capturedImage.path);
       if (!await imageFile.exists()) {
         throw Exception('Image file does not exist');
       }
       
-      print('✅ Image file exists, size: ${await imageFile.length()} bytes');
-      
-      // Load model if not already loaded
-      print('🤖 Loading AI model...');
+      // Load model and get prediction
       bool modelLoaded = await _model.loadModel();
-      
       if (!modelLoaded) {
         throw Exception('Failed to load AI model');
       }
       
-      print('✅ Model loaded successfully');
+      await Future.delayed(const Duration(seconds: 1)); // UX delay
       
-      // Add some delay for better UX
-      await Future.delayed(const Duration(seconds: 1));
-      
-      // Get prediction from model
-      print('🔬 Running disease prediction...');
       final results = await _model.predictDisease(widget.capturedImage.path);
       
-      print('📊 Prediction results: $results');
-      
-      // Check if we got valid results
       if (results == null || results.isEmpty) {
         throw Exception('Model returned empty results');
       }
@@ -110,14 +91,10 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
         _isAnalyzing = false;
       });
       
-      // Stop the loading animation
       _pulseController.stop();
       
-      print('✅ Analysis complete: $_prediction (${(_confidence! * 100).toStringAsFixed(1)}%)');
-      
-    } catch (e, stackTrace) {
+    } catch (e) {
       print('❌ Analysis error: $e');
-      print('Stack trace: $stackTrace');
       
       setState(() {
         _prediction = 'Error analyzing image';
@@ -132,7 +109,6 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
       });
       _pulseController.stop();
       
-      // Show error dialog to user
       _showErrorDialog(e.toString());
     }
   }
@@ -153,7 +129,7 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
             child: const Text('Retry'),
             onPressed: () {
               Navigator.of(context).pop();
-              _analyzeImage(); // Retry analysis
+              _analyzeImage();
             },
           ),
         ],
@@ -163,12 +139,14 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
 
   Color _getHealthColor(String disease) {
     switch (disease.toLowerCase()) {
-      case 'healthy':
-        return CupertinoColors.systemGreen;
       case 'brown spot':
-      case 'leaf blast':
-      case 'bacterial blight':
+      case 'rice blast':
+      case 'bacterial leaf blight':
+      case 'sheath blight':
+      case 'tungro virus':
         return CupertinoColors.systemRed;
+      case 'unknown disease':
+        return CupertinoColors.systemOrange;
       case 'error':
         return CupertinoColors.systemOrange;
       default:
@@ -178,12 +156,14 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
 
   IconData _getHealthIcon(String disease) {
     switch (disease.toLowerCase()) {
-      case 'healthy':
-        return CupertinoIcons.checkmark_seal_fill;
       case 'brown spot':
-      case 'leaf blast':
-      case 'bacterial blight':
+      case 'rice blast':
+      case 'bacterial leaf blight':
+      case 'sheath blight':
+      case 'tungro virus':
         return CupertinoIcons.exclamationmark_triangle_fill;
+      case 'unknown disease':
+        return CupertinoIcons.question_circle_fill;
       case 'error':
         return CupertinoIcons.xmark_circle_fill;
       default:
@@ -319,10 +299,10 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
                     const SizedBox(width: 16),
                     Flexible(
                       child: Text(
-                        _prediction == 'Healthy' 
-                          ? 'Your rice looks healthy!' 
-                          : _prediction == 'Error'
-                            ? 'Analysis failed'
+                        _prediction == 'Error'
+                          ? 'Analysis failed'
+                          : _prediction == 'Unknown Disease'
+                            ? 'Unknown condition detected'
                             : 'Disease detected: $_prediction',
                         style: TextStyle(
                           fontSize: 28,
@@ -408,72 +388,74 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
                   ),
                   
                   const SizedBox(height: 20),
+                ],
                   
-                  // Recommendations
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Colors.transparent,
-                      borderRadius: BorderRadius.circular(15),
-                      border: Border.all(
-                        color: CupertinoColors.white.withOpacity(0.3),
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              CupertinoIcons.lightbulb,
-                              color: CupertinoColors.white,
-                              size: 22,
-                            ),
-                            const SizedBox(width: 12),
-                            const Text(
-                              'Recommendations',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                                color: CupertinoColors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        ..._model.getRecommendations(_prediction!).map(
-                          (recommendation) => Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  '• ',
-                                  style: TextStyle(
-                                    color: CupertinoColors.white,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Text(
-                                    recommendation,
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      color: CupertinoColors.white,
-                                      height: 1.4,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
+                const SizedBox(height: 20),
+                  
+                // Recommendations
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(
+                      color: CupertinoColors.white.withOpacity(0.3),
+                      width: 1.5,
                     ),
                   ),
-                ],
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            CupertinoIcons.lightbulb,
+                            color: CupertinoColors.white,
+                            size: 22,
+                          ),
+                          const SizedBox(width: 12),
+                          const Text(
+                            'Recommendations',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: CupertinoColors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      ..._model.getRecommendations(_prediction!).map(
+                        (recommendation) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                '• ',
+                                style: TextStyle(
+                                  color: CupertinoColors.white,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              Expanded(
+                                child: Text(
+                                  recommendation,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    color: CupertinoColors.white,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
 
                 // Error Details (if there's an error)
                 if (_prediction == 'Error' && _analysisResults?['error'] != null) ...[
